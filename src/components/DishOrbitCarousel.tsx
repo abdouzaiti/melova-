@@ -2,11 +2,8 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import { gsap } from "gsap"
-import { ScrollTrigger } from "gsap/ScrollTrigger"
 import { MelovaLogo } from "./MelovaLogo"
 import type { PizzaSize, SizePrices } from "../data/dishes"
-
-gsap.registerPlugin(ScrollTrigger)
 
 export type Dish = {
   title: string
@@ -35,6 +32,8 @@ export type DishOrbitCarouselProps = {
   brandName?: string
   brandTagline?: string
   cartCount?: number
+  paused?: boolean
+  autoPlayInterval?: number
   jumpTo?: { index: number; seq: number } | null
   onPlay?: (dish: Dish, index: number) => void
   onOrder?: (dish: Dish, index: number, size: PizzaSize) => void
@@ -100,7 +99,6 @@ export const ARC_SWEEP = [38, 146]
 const ORBIT_X = 299
 const ORBIT_Y = -450
 const ORBIT_R = 650
-const SCROLL_PER_DISH = 0.65
 const SWING = 50
 const ITEM = 118
 const VISIBLE = 4
@@ -115,7 +113,7 @@ const SIZE_OPTIONS: { key: PizzaSize; label: string }[] = [
 
 const CSS =
   ".dsh-trk{position:relative;width:100%}" +
-  ".dsh-root{position:sticky;top:0;overflow:hidden;width:100%;background:var(--color-background);color:var(--color-foreground);" +
+  ".dsh-root{position:relative;overflow:hidden;width:100%;height:100%;background:var(--color-background);color:var(--color-foreground);touch-action:pan-y;" +
   "font-family:" + FONT + ",'Plus Jakarta Sans',ui-sans-serif,system-ui,sans-serif;container-type:inline-size;-webkit-tap-highlight-color:transparent}" +
   ".dsh-root *{box-sizing:border-box}" +
   ".dsh-tricolor{position:absolute;left:0;right:0;top:0;height:3px;display:grid;grid-template-columns:1fr 1fr 1fr;z-index:10;pointer-events:none}" +
@@ -210,8 +208,7 @@ const CSS =
   ".dsh-th-lbl{font-size:10.5px;line-height:1.15;text-align:center;font-weight:700;color:var(--color-foreground);max-width:80px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
   ".dsh-th-pr{font-size:9.5px;font-weight:700;color:var(--color-melova-gold);font-variant-numeric:tabular-nums}" +
   ".dsh-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}" +
-  ".dsh-compact{touch-action:none;overscroll-behavior:contain}" +
-  ".dsh-compact .dsh-plates{touch-action:none}" +
+  ".dsh-compact .dsh-plates{touch-action:pan-y}" +
   "@container (max-width:639px){" +
   ".dsh-canvas{position:relative;left:auto;top:auto;width:100%;height:auto;transform:none;display:flex;flex-direction:column;align-items:center;padding:12px 16px 14px}" +
   ".dsh-arc{width:200%;height:auto;left:-60%;top:-30px}" +
@@ -255,6 +252,8 @@ export function DishOrbitCarousel({
   brandName = "MELOVA",
   brandTagline = "Pizzeria · Fresh & Tasty",
   cartCount = 0,
+  paused = false,
+  autoPlayInterval = 3000,
   jumpTo = null,
   onPlay,
   onOrder,
@@ -273,8 +272,6 @@ export function DishOrbitCarousel({
 
   const trackRef = useRef(null as HTMLDivElement | null)
   const rootRef = useRef(null as HTMLDivElement | null)
-  const stRef = useRef(null as ScrollTrigger | null)
-  const segRef = useRef(0)
   const indexRef = useRef(0)
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
@@ -392,61 +389,11 @@ export function DishOrbitCarousel({
     onChangeRef.current?.(next)
   }
 
-  const steps = scrollSteps(n, loop)
-  useEffect(() => {
-    const track = trackRef.current
-    if (!track || steps < 1 || isCompact) return
-    const trigger = ScrollTrigger.create({
-      trigger: track,
-      start: "top top",
-      end: "bottom bottom",
-      snap: { snapTo: 1 / steps, duration: { min: 0.3, max: 0.8 }, delay: 0.08, ease: "power2.inOut" },
-      onUpdate: (self) => {
-        if (loop && self.progress >= 1 && self.direction > 0) {
-          segRef.current = 0
-          self.scroll(self.start + 1)
-          select(0, 1)
-          return
-        }
-        const seg = Math.round(self.progress * steps)
-        if (seg === segRef.current) return
-        const dir = seg > segRef.current ? 1 : -1
-        segRef.current = seg
-        select(wrapIndex(seg, n), dir)
-      },
-    })
-    let raf = 0
-    const onWheel = (e: WheelEvent) => {
-      const y = trigger.scroll()
-      if (!loop || e.deltaY >= 0 || y < trigger.start - 1 || y > trigger.start + 1) return
-      cancelAnimationFrame(raf)
-      raf = requestAnimationFrame(() => {
-        segRef.current = n - 1
-        trigger.scroll(trigger.start + ((trigger.end - trigger.start) * (n - 1)) / steps)
-        select(n - 1, -1)
-      })
-    }
-    window.addEventListener("wheel", onWheel, { passive: true })
-    stRef.current = trigger
-    return () => {
-      cancelAnimationFrame(raf)
-      window.removeEventListener("wheel", onWheel)
-      trigger.kill()
-      stRef.current = null
-    }
-  }, [steps, loop, n, isCompact])
-
   const go = (to: number, dir?: 1 | -1) => {
     if (n < 2) return
     const next = wrapIndex(to, n)
     if (next === indexRef.current) return
-    const st = stRef.current
-    const y = st ? st.scroll() : 0
-    if (st && y >= st.start - 1 && y <= st.end + 1) {
-      const seg = segmentFor(next, segRef.current, n, loop)
-      segRef.current = seg
-      st.scroll(st.start + ((st.end - st.start) * seg) / steps)
-    }
+    if (!loop && ((dir === 1 && indexRef.current === n - 1) || (dir === -1 && indexRef.current === 0))) return
     select(next, dir ?? stepDirection(indexRef.current, next, n))
   }
   const step = (d: 1 | -1) => go(indexRef.current + d, d)
@@ -459,15 +406,24 @@ export function DishOrbitCarousel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jumpTo])
 
+  // Auto-advance every 3 seconds; resets cleanly whenever the active pizza changes
+  useEffect(() => {
+    if (paused || n < 2 || autoPlayInterval <= 0 || reducedRef.current) return
+    const timer = window.setTimeout(() => {
+      stepRef.current(1)
+    }, autoPlayInterval)
+    return () => window.clearTimeout(timer)
+  }, [index, paused, n, autoPlayInterval])
+
+  // Horizontal wheel / trackpad gesture moves right or left; vertical scroll passes straight through to the page
   useEffect(() => {
     const el = rootRef.current
-    if (!el || !isCompact) return
+    if (!el) return
 
     let accum = 0
     let wheelLocked = false
     let lockedUntil = 0
     let idleTimer: ReturnType<typeof setTimeout> | null = null
-    let drag: { id: number; x: number; y: number; done: boolean } | null = null
 
     const releaseWheel = () => {
       const now = Date.now()
@@ -479,77 +435,47 @@ export function DishOrbitCarousel({
       }
     }
 
-    const onWheelCompact = (e: WheelEvent) => {
+    const onWheel = (e: WheelEvent) => {
+      const ax = Math.abs(e.deltaX)
+      const ay = Math.abs(e.deltaY)
+      if (ax <= ay || ax < 4) return
       e.preventDefault()
       if (idleTimer) clearTimeout(idleTimer)
       idleTimer = setTimeout(releaseWheel, 160)
       if (wheelLocked) return
-      const delta = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX
-      if (!delta) return
-      accum += delta
-      if (Math.abs(accum) >= 18) {
+      accum += e.deltaX
+      if (Math.abs(accum) >= 24) {
         const d: 1 | -1 = accum > 0 ? 1 : -1
         accum = 0
         wheelLocked = true
-        lockedUntil = Date.now() + 580
+        lockedUntil = Date.now() + 550
         stepRef.current(d)
       }
     }
 
-    const onPointerDownCompact = (e: PointerEvent) => {
-      drag = { id: e.pointerId, x: e.clientX, y: e.clientY, done: false }
-    }
-
-    const onPointerMoveCompact = (e: PointerEvent) => {
-      if (!drag || drag.done || e.pointerId !== drag.id) return
-      const dx = e.clientX - drag.x
-      const dy = e.clientY - drag.y
-      const ax = Math.abs(dx)
-      const ay = Math.abs(dy)
-      if (ax < 24 && ay < 24) return
-      drag.done = true
-      if (ay >= ax) {
-        stepRef.current(dy < 0 ? 1 : -1)
-      } else {
-        stepRef.current(dx < 0 ? 1 : -1)
-      }
-    }
-
-    const onPointerEndCompact = (e: PointerEvent) => {
-      if (drag && e.pointerId === drag.id) drag = null
-    }
-
-    el.addEventListener("wheel", onWheelCompact, { passive: false })
-    el.addEventListener("pointerdown", onPointerDownCompact)
-    el.addEventListener("pointermove", onPointerMoveCompact)
-    el.addEventListener("pointerup", onPointerEndCompact)
-    el.addEventListener("pointercancel", onPointerEndCompact)
-
+    el.addEventListener("wheel", onWheel, { passive: false })
     return () => {
       if (idleTimer) clearTimeout(idleTimer)
-      el.removeEventListener("wheel", onWheelCompact)
-      el.removeEventListener("pointerdown", onPointerDownCompact)
-      el.removeEventListener("pointermove", onPointerMoveCompact)
-      el.removeEventListener("pointerup", onPointerEndCompact)
-      el.removeEventListener("pointercancel", onPointerEndCompact)
+      el.removeEventListener("wheel", onWheel)
     }
-  }, [isCompact])
+  }, [])
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); step(1) }
-    else if (e.key === "ArrowLeft" || e.key === "ArrowUp") { e.preventDefault(); step(-1) }
+    if (e.key === "ArrowRight") { e.preventDefault(); step(1) }
+    else if (e.key === "ArrowLeft") { e.preventDefault(); step(-1) }
   }
   const onPointerDown = (e: React.PointerEvent) => {
-    if (isCompact) return
     swipe.current = { x: e.clientX, y: e.clientY }
   }
   const onPointerUp = (e: React.PointerEvent) => {
-    if (isCompact) return
     const s = swipe.current
     swipe.current = null
     if (!s) return
     const dx = e.clientX - s.x
-    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(e.clientY - s.y) * 1.4) step(dx < 0 ? 1 : -1)
+    const dy = e.clientY - s.y
+    if (Math.abs(dx) > 36 && Math.abs(dx) > Math.abs(dy) * 1.25) {
+      step(dx < 0 ? 1 : -1)
+    }
   }
 
   const start = stripStart(index, n, VISIBLE)
@@ -557,16 +483,19 @@ export function DishOrbitCarousel({
   const activePrice = dish?.prices ? dish.prices[selectedSize] : (dish?.price ?? 0)
 
   return (
-    <div ref={trackRef} className={"dsh-trk" + (className ? " " + className : "")} style={{ height: isCompact ? height : "calc(" + height + " * " + (1 + steps * SCROLL_PER_DISH) + ")" }}>
+    <div ref={trackRef} className={"dsh-trk" + (className ? " " + className : "")} style={{ height }}>
     <div
       ref={rootRef}
       className={"dsh-root" + (isCompact ? " dsh-compact" : "")}
-      style={{ height }}
+      style={{ height: "100%" }}
       role="region"
       aria-roledescription="carousel"
       aria-label="Carte des Pizzas Pizzeria MELOVA"
       tabIndex={0}
       onKeyDown={onKeyDown}
+      onPointerDown={onPointerDown}
+      onPointerUp={onPointerUp}
+      onPointerCancel={() => (swipe.current = null)}
     >
       <style>
         {(fontSrc ? "@font-face{font-family:" + FONT + ";src:url(" + fontSrc + ") format('woff2');font-weight:100 900;font-display:swap}" : "") + CSS}
@@ -618,7 +547,7 @@ export function DishOrbitCarousel({
           ))}
         </div>
 
-        <div className="dsh-plates" onPointerDown={onPointerDown} onPointerUp={onPointerUp} onPointerCancel={() => (swipe.current = null)}>
+        <div className="dsh-plates">
           {dishes.map((d, i) => (
             <div key={i} ref={(el) => { orbits.current[i] = el }} className="dsh-orbit" aria-hidden={i !== index}>
               <img src={d.image} alt={d.alt ?? d.title + " " + d.subtitle} width={245} height={245} draggable={false} referrerPolicy="no-referrer" />

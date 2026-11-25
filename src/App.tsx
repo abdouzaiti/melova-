@@ -143,6 +143,32 @@ export function App() {
     })
   }
 
+  const updateSize = (oldKey: string, newSize: PizzaSize) => {
+    setOrderLines((prev) => {
+      const line = prev[oldKey]
+      if (!line || line.size === newSize) return prev
+      const newKey = `${line.dish.id}__${newSize}`
+      const copy = { ...prev }
+      delete copy[oldKey]
+      const existingTarget = copy[newKey]
+      if (existingTarget) {
+        copy[newKey] = {
+          ...existingTarget,
+          quantity: existingTarget.quantity + line.quantity,
+          supplements: Array.from(new Set([...existingTarget.supplements, ...line.supplements])),
+          note: existingTarget.note || line.note,
+        }
+      } else {
+        copy[newKey] = {
+          ...line,
+          key: newKey,
+          size: newSize,
+        }
+      }
+      return copy
+    })
+  }
+
   const toggleSupplement = (key: string, suppId: string) => {
     setOrderLines((prev) => {
       const line = prev[key]
@@ -218,6 +244,8 @@ export function App() {
         brandName="MELOVA"
         brandTagline="Pizzeria · Fresh & Tasty"
         cartCount={itemCount}
+        paused={Boolean(videoDish || orderOpen || searchOpen || menuOpen)}
+        autoPlayInterval={3000}
         jumpTo={jumpTo}
         onChange={(idx) => setActiveIndex(idx)}
         onPlay={(_dish, idx) => {
@@ -862,6 +890,36 @@ export function App() {
                         <p className="text-xs text-[var(--color-muted-foreground)]">
                           Taille {PIZZA_SIZE_LABELS[size]} ({dish.prices[size]} da) · {dish.prepMinutes} min
                         </p>
+                      </div>
+                    </div>
+
+                    {/* Taille selector */}
+                    <div className="space-y-1.5">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-[#F5B700]">
+                        Taille
+                      </p>
+                      <div className="grid grid-cols-3 gap-1.5" role="group" aria-label={`Taille pour ${dish.subtitle}`}>
+                        {SIZE_LIST.map((sz) => {
+                          const isSelected = size === sz
+                          return (
+                            <button
+                              key={sz}
+                              type="button"
+                              aria-pressed={isSelected}
+                              onClick={() => updateSize(key, sz)}
+                              className={`flex flex-col items-center justify-center rounded-lg border px-2 py-1.5 text-[11px] font-bold transition-colors ${
+                                isSelected
+                                  ? "border-[#F5B700] bg-[#F5B700] text-[#141414]"
+                                  : "border-black/12 dark:border-white/12 text-[var(--color-muted-foreground)] hover:border-[#F5B700]/50 hover:text-[var(--color-foreground)]"
+                              }`}
+                            >
+                              <span>{PIZZA_SIZE_LABELS[sz]}</span>
+                              <span className="tabular-nums text-[10px] opacity-85">
+                                {dish.prices[sz]} da
+                              </span>
+                            </button>
+                          )
+                        })}
                       </div>
                     </div>
 
