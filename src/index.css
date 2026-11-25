@@ -1,0 +1,48 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --color-background: #f6f4ef;
+  --color-surface: #ffffff;
+  --color-foreground: #141414;
+  --color-muted-foreground: #5a5750;
+  --color-primary: #d99b00;
+  --color-melova-gold: #f5b700;
+  --color-melova-gold-deep: #d49a00;
+  --color-melova-red: #ce2b37;
+  --color-melova-green: #009246;
+}
+
+.dark {
+  --color-background: #111111;
+  --color-surface: #191919;
+  --color-foreground: #f7f6f2;
+  --color-muted-foreground: #a8a49c;
+  --color-primary: #f5b700;
+  --color-melova-gold: #f5b700;
+  --color-melova-gold-deep: #ffc928;
+  --color-melova-red: #e03a46;
+  --color-melova-green: #00a850;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.font-melova-script {
+  font-family: "Kaushan Script", cursive;
+}
+
+/* Chalkboard subtle grain surface */
+.melova-chalkboard {
+  background-color: #111111;
+  background-image:
+    radial-gradient(circle at 20% 20%, rgba(245, 183, 0, 0.06), transparent 45%),
+    radial-gradient(circle at 80% 75%, rgba(255, 255, 255, 0.03), transparent 50%);
+}

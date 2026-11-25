@@ -1,0 +1,8 @@
+{
+  "name": "melova +",
+  "description": "Smart-kitchen display menu featuring an orbital dish carousel, chef tasting notes, ingredient breakdowns, and table ordering.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
